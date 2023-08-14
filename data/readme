@@ -1,0 +1,12 @@
+NTU watercolor pigments spectral measurement dataset (NTU WPSM dataset), January 2019.
+
+
+Input layer:
+
+MQ_test_488_X_ok.csv
+MQ_train_1956_X_ok.csv
+
+Output layer:
+
+MQ_test_488_Y_ok.csv
+MQ_train_1956_Y_ok.csv

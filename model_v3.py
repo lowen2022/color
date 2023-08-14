@@ -16,20 +16,21 @@ from sklearn.preprocessing import StandardScaler
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 # 设置超参数
-lr = 0.001
-batch_size = 32
-hidden_size = 41
+lr = 0.1
+batch_size = 16
+
 num_epochs = 1000
-Datainput=207
-Routput=41
-path1 = './data/MQ_train_1956_X_ok.csv'
-path2= './data/MQ_train_1956_Y_ok.csv'
-path3='./data/MQ_test_488_X_ok.csv'
-path4='./data/MQ_test_488_Y_ok.csv'
-path='C:/Users/hydro1/lowen/color/data/trainXY.csv'
+Datainput=31
+Routput=3
+path1='./csvprocess/R2CIE/Rtrain'
+path2='./csvprocess/R2CIE/RtrainY'
+path3='./csvprocess/R2CIE/Rtest.csv'
+path4='./csvprocess/R2CIE/RtestY.csv'
+
+
 # 读取训练数据和标签数据
-train_data = pd.read_csv(path1)
-label_data = pd.read_csv(path2)
+train_data = pd.read_csv(path3)#path1 or path5
+label_data = pd.read_csv(path4)
 
 # # 创建一个 StandardScaler 对象
 # scaler = StandardScaler()
@@ -42,8 +43,8 @@ label_data = pd.read_csv(path2)
 #
 
 # 将训练数据和标签数据转换为 NumPy 数组
-train_data_array = train_data.values
-train_label_array = label_data.values
+train_data_array = train_data.values[:64]
+train_label_array = label_data.values[:64]
 
 # 将 NumPy 数组转换为 PyTorch 张量
 train_data_tensor = torch.tensor(train_data_array, dtype=torch.float32)
@@ -64,8 +65,8 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,shuffle=
 
 
 # 读取训练数据和标签数据
-valid_data = pd.read_csv(path3)
-valid_label = pd.read_csv(path4)
+valid_data = pd.read_csv(path3)[64:]#path3(R207) or path6(R84)
+valid_label = pd.read_csv(path4)[64:]
 
 # 将训练数据和标签数据转换为 NumPy 数组
 valid_data_array = valid_data.values
@@ -88,10 +89,10 @@ def lossMME(y_pred,y_true):
     m = y_true.shape[0]
     mu = torch.mean(y_true)
 
-    mape = torch.sum(torch.abs((y_true - y_pred) / y_true))/41
-    mae = torch.sum(torch.abs(y_true - y_pred))/41
+    mape = torch.sum(torch.abs((y_true - y_pred) / y_true))/31
+    mae = torch.sum(torch.abs(y_true - y_pred))/31
 
-    Var_all = torch.sum(torch.var(y_true - y_pred))/41
+    Var_all = torch.sum(torch.var(y_true - y_pred))/31
 
     alpha = 3
     beta = 2
@@ -99,15 +100,24 @@ def lossMME(y_pred,y_true):
     loss = mape+alpha * mae + beta * Var_all  #+0.000015 * torch.norm(y_pred, p=1) + 0.000003 * torch.norm(y_pred, p=2)
 
     return loss
+def lossE(y_pred,y_true):
+    # 确保两个张量具有相同的形状
+    assert y_pred.shape == y_true.shape, "两个张量的形状不匹配"
+
+    # 计算平方差之和
+    squared_diff = torch.square(y_pred - y_true)
+    sum_of_squared_diff = torch.sum(squared_diff)
+
+    return sum_of_squared_diff
 class SWPMPredictionModel(nn.Module):
     def __init__(self,Datainput,Routput):
         super(SWPMPredictionModel, self).__init__()
-        self.fc1 = nn.Linear(Datainput, 166)
-        self.fc2 = nn.Linear(166,166)
-        self.fc3 = nn.Linear(166, 166)
-        self.fc4 = nn.Linear(166,166)
-        self.fc5 = nn.Linear(166, 166)
-        self.fcoutput = nn.Linear(166,41)
+        self.fc1 = nn.Linear(Datainput, 22)
+        self.fc2 = nn.Linear(22,22)
+        # self.fc3 = nn.Linear(166, 166)
+        # self.fc4 = nn.Linear(166,166)
+        # self.fc5 = nn.Linear(166, 166)
+        self.fcoutput = nn.Linear(22,Routput)
         self.relu= nn.ReLU()
         self.leakyrelu=nn.LeakyReLU(negative_slope=0.01)
         self.dropout = nn.Dropout(0.5)  # 添加 dropout 层，丢弃概率为 0.5
@@ -120,13 +130,13 @@ class SWPMPredictionModel(nn.Module):
         x = self.leakyrelu(x)
         # x = self.dropout(x)
         x = self.fc2(x)
+        # # x = self.leakyrelu(x)
+        # x = self.fc3(x)
         # x = self.leakyrelu(x)
-        x = self.fc3(x)
-        x = self.leakyrelu(x)
-        x = self.fc4(x)
-        x = self.relu(x)
-        # x = self.dropout(x)
-        x = self.fc5(x)
+        # x = self.fc4(x)
+        # x = self.relu(x)
+        # # x = self.dropout(x)
+        # x = self.fc5(x)
         x = self.relu(x)
         x = self.fcoutput(x)
         # x = self.sigmoid(x)
@@ -157,18 +167,18 @@ vaccuracy_win = 'vaccuracy'
 vis.line(X=np.array([0]), Y=np.array([0]), win=vaccuracy_win, opts=dict(title='Valid Accuracy'))
 
 model = SWPMPredictionModel(Datainput,Routput )
-criterion=lossMME
-
+# criterion=lossMME
+criterion =lossE
 nn.init.xavier_uniform_(model.fc1.weight)
 nn.init.zeros_(model.fc1.bias)
 nn.init.xavier_uniform_(model.fc2.weight)
 nn.init.zeros_(model.fc2.bias)
-nn.init.xavier_uniform_(model.fc3.weight)
-nn.init.zeros_(model.fc3.bias)
-nn.init.xavier_uniform_(model.fc4.weight)
-nn.init.zeros_(model.fc4.bias)
-nn.init.xavier_uniform_(model.fc5.weight)
-nn.init.zeros_(model.fc5.bias)
+# nn.init.xavier_uniform_(model.fc3.weight)
+# nn.init.zeros_(model.fc3.bias)
+# nn.init.xavier_uniform_(model.fc4.weight)
+# nn.init.zeros_(model.fc4.bias)
+# nn.init.xavier_uniform_(model.fc5.weight)
+# nn.init.zeros_(model.fc5.bias)
 nn.init.xavier_uniform_(model.fcoutput.weight)
 nn.init.zeros_(model.fcoutput.bias)
 
@@ -189,9 +199,9 @@ for epoch in range(num_epochs):
         warmup_factor = min((epoch + 1) / warmup_epochs, 1.0)
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr * warmup_factor
-    else:
+    # else:
         # 根据epoch调整学习率
-        scheduler.step()
+        # scheduler.step()
     # 训练模式
     model.train()
     train_loss = 0.0
@@ -205,7 +215,11 @@ for epoch in range(num_epochs):
         loss = criterion(outputs, labels)
         # loss=criterion(outputs,labels)
         # vis.line(X=np.array([epoch]), Y=np.array([loss_detached]), win='loss', update='append')
+        loss_detached=loss.detach().numpy()
 
+        if(loss_detached<=5):
+                train_correct+=1
+        E.append(loss_detached)
         # 反向传播和优化
         optimizer.zero_grad()
         loss.backward()
@@ -215,14 +229,14 @@ for epoch in range(num_epochs):
         train_loss += loss.item() * inputs.size(0)
 
         outputs_array = outputs.detach().numpy()
-        for result, tgt in zip(outputs_array, labels):
-            L1, a1, b1 = R2CIE(result, 41)
-            L2, a2, b2 = R2CIE(tgt, 41)
-            e = Ecalculate(L1, a1, b1, L2, a2, b2)
-            if(e<=5):
-                train_correct+=1
-
-            E.append(e)
+        # for result, tgt in zip(outputs_array, labels):
+        #     L1, a1, b1 = R2CIE(result, Routput)
+        #     L2, a2, b2 = R2CIE(tgt, Routput)
+        #     e = Ecalculate(L1, a1, b1, L2, a2, b2)
+        #     if(e<=5):
+        #         train_correct+=1
+        #
+        #     E.append(e)
 
 
     # 打印学习率
@@ -233,8 +247,8 @@ for epoch in range(num_epochs):
         print('-->name:', name, '-->grad_requirs:', parms.requires_grad, '--weight', torch.mean(parms.data),
               ' -->grad_value:', torch.mean(parms.grad))
     if epoch % 100 == 0:
-        Emean=np.array(E)
-        print('Emean',Emean)
+        # Emean=np.array(E)
+        # print('Emean',Emean)
         current_time = time.strftime('%m-%d__%H:%M:%S')
         print('Epoch {}, Loss: {} , Time: {}'.format(epoch, loss.item(), current_time))
         # for name, parms in model.named_parameters():
@@ -256,14 +270,10 @@ for epoch in range(num_epochs):
             for result, tgt in zip(validoutput, valid_label):
                 E=[]
                 val_loss = criterion(result, tgt)
+                val_loss_detach =val_loss.detach().numpy()
 
-                L1, a1, b1 = R2CIE(result, 41)
-                L2, a2, b2 = R2CIE(tgt, 41)
-                # print("L1,a1,b1", L1, a1, b1)
-                # print("L2,a2,b2", L2, a2, b2)
-                evalid=Ecalculate(L1, a1, b1, L2, a2, b2)
                 # E.append(evalid)
-                if(evalid<=5):
+                if(val_loss_detach<=5):
                     valid_correct+=1
                 # Emean = np.array(E)
 

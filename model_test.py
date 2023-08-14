@@ -18,18 +18,23 @@ import torch.optim.lr_scheduler as lr_scheduler
 # 设置超参数
 lr = 0.001
 batch_size = 32
-hidden_size = 41
+
 num_epochs = 1000
-Datainput=207
-Routput=41
+Datainput=64
+Routput=31
 path1 = './data/MQ_train_1956_X_ok.csv'
 path2= './data/MQ_train_1956_Y_ok.csv'
 path3='./data/MQ_test_488_X_ok.csv'
 path4='./data/MQ_test_488_Y_ok.csv'
-path='C:/Users/hydro1/lowen/color/data/trainXY.csv'
+
+path5='./csvprocess/train64.csv'
+path6='./csvprocess/trainY64.csv'
+path7='./csvprocess/test64.csv'
+path8='./csvprocess/testY64.csv'
+
 # 读取训练数据和标签数据
-train_data = pd.read_csv(path1)
-label_data = pd.read_csv(path2)
+train_data = pd.read_csv(path5)#path1 or path5
+label_data = pd.read_csv(path6)
 
 # # 创建一个 StandardScaler 对象
 # scaler = StandardScaler()
@@ -64,8 +69,8 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,shuffle=
 
 
 # 读取训练数据和标签数据
-valid_data = pd.read_csv(path3)
-valid_label = pd.read_csv(path4)
+valid_data = pd.read_csv(path7)#path3(R207) or path6(R84)
+valid_label = pd.read_csv(path8)
 
 # 将训练数据和标签数据转换为 NumPy 数组
 valid_data_array = valid_data.values
@@ -88,10 +93,10 @@ def lossMME(y_pred,y_true):
     m = y_true.shape[0]
     mu = torch.mean(y_true)
 
-    mape = torch.sum(torch.abs((y_true - y_pred) / y_true))/41
-    mae = torch.sum(torch.abs(y_true - y_pred))/41
+    mape = torch.sum(torch.abs((y_true - y_pred) / y_true))/31
+    mae = torch.sum(torch.abs(y_true - y_pred))/31
 
-    Var_all = torch.sum(torch.var(y_true - y_pred))/41
+    Var_all = torch.sum(torch.var(y_true - y_pred))/31
 
     alpha = 3
     beta = 2
@@ -107,7 +112,7 @@ class SWPMPredictionModel(nn.Module):
         self.fc3 = nn.Linear(166, 166)
         self.fc4 = nn.Linear(166,166)
         self.fc5 = nn.Linear(166, 166)
-        self.fcoutput = nn.Linear(166,41)
+        self.fcoutput = nn.Linear(166,Routput)
         self.relu= nn.ReLU()
         self.leakyrelu=nn.LeakyReLU(negative_slope=0.01)
         self.dropout = nn.Dropout(0.5)  # 添加 dropout 层，丢弃概率为 0.5
@@ -216,8 +221,8 @@ for epoch in range(num_epochs):
 
         outputs_array = outputs.detach().numpy()
         for result, tgt in zip(outputs_array, labels):
-            L1, a1, b1 = R2CIE(result, 41)
-            L2, a2, b2 = R2CIE(tgt, 41)
+            L1, a1, b1 = R2CIE(result, Routput)
+            L2, a2, b2 = R2CIE(tgt, Routput)
             e = Ecalculate(L1, a1, b1, L2, a2, b2)
             if(e<=5):
                 train_correct+=1
@@ -257,8 +262,8 @@ for epoch in range(num_epochs):
                 E=[]
                 val_loss = criterion(result, tgt)
 
-                L1, a1, b1 = R2CIE(result, 41)
-                L2, a2, b2 = R2CIE(tgt, 41)
+                L1, a1, b1 = R2CIE(result, Routput)
+                L2, a2, b2 = R2CIE(tgt, Routput)
                 # print("L1,a1,b1", L1, a1, b1)
                 # print("L2,a2,b2", L2, a2, b2)
                 evalid=Ecalculate(L1, a1, b1, L2, a2, b2)
